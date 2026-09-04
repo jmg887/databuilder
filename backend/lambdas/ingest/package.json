@@ -1,0 +1,12 @@
+{
+  "name": "@databuilder/ingest",
+  "version": "1.0.0",
+  "description": "Receives tracking-script events (visitor create, pageview)",
+  "main": "index.js",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "pg": "^8.11.3",
+    "@aws-sdk/client-secrets-manager": "^3.540.0"
+  }
+}

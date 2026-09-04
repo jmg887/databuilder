@@ -1,0 +1,13 @@
+{
+  "name": "@databuilder/stripe-webhook",
+  "version": "1.0.0",
+  "description": "Receives + verifies Stripe webhook events, runs attribution",
+  "main": "index.js",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "stripe": "^14.25.0",
+    "pg": "^8.11.3",
+    "@aws-sdk/client-secrets-manager": "^3.540.0"
+  }
+}

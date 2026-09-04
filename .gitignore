@@ -1,0 +1,42 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json.orig
+
+# Build output
+dist/
+build/
+*.zip
+frontend/dashboard/dist/
+frontend/tracking-script/dist/
+backend/lambdas/**/dist/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+aws-credentials
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
