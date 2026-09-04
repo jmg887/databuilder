@@ -1,0 +1,12 @@
+{
+  "name": "@databuilder/shared",
+  "version": "1.0.0",
+  "description": "Shared DB access and utility code for databuilder lambdas",
+  "main": "index.js",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "pg": "^8.11.3",
+    "@aws-sdk/client-secrets-manager": "^3.540.0"
+  }
+}

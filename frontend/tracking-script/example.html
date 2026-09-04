@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>databuilder tracking test page</title>
+    <!--
+      Manual end-to-end test page.
+
+      1. Build the script: `npm run build` (produces dist/t.js).
+      2. Serve this directory (e.g. `python3 -m http.server 8080`).
+      3. Open with UTM params, e.g.:
+         http://localhost:8080/example.html?utm_source=twitter&utm_medium=social&utm_campaign=launch
+      4. Set data-site-id below to a real site ID and data-api to your
+         deployed /collect URL, then reload to see rows appear in the DB.
+    -->
+    <script
+      async
+      src="./dist/t.js"
+      data-site-id="REPLACE_WITH_SITE_ID"
+      data-api="http://localhost:3000/collect"
+    ></script>
+  </head>
+  <body>
+    <h1>databuilder test page</h1>
+    <p>Open your browser network tab — a request to <code>/collect</code>
+      should fire on load.</p>
+
+    <button onclick="history.pushState({}, '', '/fake-route')">
+      Simulate SPA navigation (fires a pageview)
+    </button>
+
+    <button onclick="window.databuilder.identify('buyer@example.com')">
+      Simulate signup (identify buyer@example.com)
+    </button>
+  </body>
+</html>

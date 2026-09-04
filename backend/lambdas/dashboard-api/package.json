@@ -1,0 +1,12 @@
+{
+  "name": "@databuilder/dashboard-api",
+  "version": "1.0.0",
+  "description": "Serves aggregated attribution data to the dashboard frontend",
+  "main": "index.js",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "pg": "^8.11.3",
+    "@aws-sdk/client-secrets-manager": "^3.540.0"
+  }
+}
