@@ -109,6 +109,13 @@ resource "aws_security_group" "db" {
     security_groups = [aws_security_group.lambda.id]
   }
 
+  ingress {
+    description     = "Postgres from bastion (migrations)"
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [aws_security_group.bastion.id]
+  }
   egress {
     from_port   = 0
     to_port     = 0

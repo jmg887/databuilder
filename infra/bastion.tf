@@ -60,16 +60,6 @@ resource "aws_instance" "bastion" {
   tags = { Name = "databuilder-prod-bastion" }
 }
 
-# Allow the bastion to reach RDS on the Postgres port.
-resource "aws_security_group_rule" "db_from_bastion" {
-  type                     = "ingress"
-  from_port                = 5432
-  to_port                  = 5432
-  protocol                 = "tcp"
-  security_group_id        = aws_security_group.db.id
-  source_security_group_id = aws_security_group.bastion.id
-  description               = "Postgres from bastion (migrations)"
-}
 
 output "bastion_instance_id" {
   value = aws_instance.bastion.id
