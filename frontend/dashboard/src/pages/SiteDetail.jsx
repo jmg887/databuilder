@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../api';
+import StripeIntegration from './StripeIntegration.jsx';
 
 const RANGES = [
   { key: '7d', label: 'Last 7 days' },
@@ -57,6 +58,8 @@ export default function SiteDetail() {
           </button>
         ))}
       </div>
+
+      <StripeIntegration siteId={id} />
 
       {error && <p className="error">{error}</p>}
       {loading && <p>Loading…</p>}

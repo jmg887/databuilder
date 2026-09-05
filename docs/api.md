@@ -194,3 +194,98 @@ Visitor list with first-touch attribution detail and per-visitor revenue
 |---|---|
 | `401` | `{ "error": "unauthorized" }` |
 | `404` | `{ "error": "site not found" }` (unknown or not owned) |
+
+---
+
+## Authenticated — Stripe self-service integration
+
+Same auth + ownership rules as the other `/sites/:id/*` routes. Restricted
+keys and signing secrets are stored only in Secrets Manager and are **never**
+returned by any endpoint.
+
+### `GET /sites/:id/integrations`
+
+Current connection status, for the dashboard to render on load.
+
+```json
+{
+  "stripe": {
+    "connected": true,
+    "connectedAt": "2026-09-05T10:00:00.000Z",
+    "backfillStatus": "complete"
+  }
+}
+```
+
+When not connected: `{ "stripe": { "connected": false, "connectedAt": null, "backfillStatus": null } }`.
+
+### `POST /sites/:id/integrations/stripe`
+
+Connect Stripe using a customer-generated **restricted API key**.
+
+**Request**
+
+```json
+{ "stripeRak": "rk_live_..." }
+```
+
+**Behavior**
+
+1. Validate the key starts with `rk_live_` (test/secret/publishable keys are
+   rejected before any Stripe call — see *Key policy* below).
+2. Store the key in Secrets Manager (`databuilder-prod/site-<id>-stripe-rak`)
+   and reference it from `sites.stripe_restricted_key_secret`.
+3. Create a Stripe webhook endpoint using the customer's key:
+   - `url`: `<api_base_url>/webhooks/stripe?site=<id>`
+   - `enabled_events`: `["checkout.session.completed", "invoice.paid"]`
+4. Store the returned signing `secret` (returned only once) in Secrets Manager
+   (`databuilder-prod/site-<id>-stripe-webhook`) and reference it from
+   `sites.stripe_webhook_secret`.
+5. Set `stripe_connected_at = now()`, `stripe_backfill_status = 'pending'`,
+   persist the webhook endpoint id.
+6. Run the one-time backfill (Section 7) **synchronously**.
+7. Return `201`.
+
+If webhook creation fails, the stored restricted key is rolled back and
+Stripe's own error message is surfaced.
+
+**Key policy (implementer decision):** only `rk_live_` is accepted. `sk_…`,
+`pk_…`, and `rk_test_…` are rejected with `invalid key format`. This is the
+brief's documented default (reject test keys in production).
+
+**Responses**
+
+| status | body |
+|---|---|
+| `201` | `{ "connected": true, "backfillStatus": "complete" }` (or `"failed"` if backfill errored — the connection itself still succeeds) |
+| `400` | `{ "error": "invalid key format" }` / `{ "error": "insufficient permissions: <stripe detail>" }` / `{ "error": "stripe error: <detail>" }` |
+| `404` | `{ "error": "site not found" }` |
+| `409` | `{ "error": "stripe already connected for this site" }` |
+
+### `DELETE /sites/:id/integrations/stripe`
+
+1. Delete the webhook on Stripe (`webhookEndpoints.del`) using the stored
+   restricted key + endpoint id (best-effort).
+2. Delete both Secrets Manager entries (rak + webhook secret).
+3. Clear the Stripe columns on the `sites` row.
+
+**Responses**
+
+| status | body |
+|---|---|
+| `200` | `{ "disconnected": true }` |
+| `404` | `{ "error": "site not found" }` / `{ "error": "not connected" }` |
+
+---
+
+## Backfill
+
+Runs once, synchronously, immediately after a successful connect (MVP choice —
+no extra Lambda/queue). It paginates Stripe's **Events API** for
+`checkout.session.completed` and `invoice.paid`, normalizes each event with the
+**shared** `extractFromStripeEvent`, and inserts via the **shared**
+`insertPayment` — the exact same attribution matching the live webhook uses.
+Because it keys on the Stripe **event id** (`evt_…`, the same id the live
+webhook uses) with the unique `payments(stripe_event_id)` constraint and
+`ON CONFLICT DO NOTHING`, a later live webhook for the same event never
+double-counts. On error partway, `stripe_backfill_status` is set to `failed`.

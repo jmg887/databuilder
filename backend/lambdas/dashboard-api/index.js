@@ -8,16 +8,20 @@
  * context by that authorizer and derives the owner user id (`sub`) from them.
  *
  * Routes:
- *   GET  /sites                       list sites owned by the user
- *   POST /sites                       create a site (returns id + snippet)
- *   GET  /sites/:id/overview?range=   traffic + revenue by source
- *   GET  /sites/:id/visitors?range=   visitor list with attribution detail
+ *   GET    /sites                              list sites owned by the user
+ *   POST   /sites                              create a site (returns id + snippet)
+ *   GET    /sites/:id/overview?range=          traffic + revenue by source
+ *   GET    /sites/:id/visitors?range=          visitor list with attribution detail
+ *   GET    /sites/:id/integrations             connection status
+ *   POST   /sites/:id/integrations/stripe      connect Stripe via restricted key
+ *   DELETE /sites/:id/integrations/stripe      disconnect Stripe
  *
  * All queries are parameterized. Every /sites/:id route verifies the site is
  * owned by the requesting user before returning data.
  */
 
 const { query, json, noContent } = require('/opt/nodejs/index');
+const stripeIntegration = require('./stripe-integration');
 
 const TRACKING_SCRIPT_URL =
   process.env.TRACKING_SCRIPT_URL || 'https://cdn.example.com/t.js';
@@ -56,6 +60,28 @@ exports.handler = async (event) => {
       }
       if (sub === 'visitors' && method === 'GET') {
         return await visitors(siteId, range);
+      }
+      if (sub === 'integrations' && method === 'GET') {
+        return await stripeIntegration.getStatus(siteId);
+      }
+    }
+
+    // /sites/:id/integrations/stripe
+    if (
+      segments[0] === 'sites' &&
+      segments.length === 4 &&
+      segments[2] === 'integrations' &&
+      segments[3] === 'stripe'
+    ) {
+      const siteId = segments[1];
+      if (!(await ownsSite(userId, siteId))) {
+        return json(404, { error: 'site not found' });
+      }
+      if (method === 'POST') {
+        return await stripeIntegration.connect(siteId, event);
+      }
+      if (method === 'DELETE') {
+        return await stripeIntegration.disconnect(siteId);
       }
     }
 

@@ -17,7 +17,13 @@
  */
 
 const Stripe = require('stripe');
-const { query, getSecretString, json } = require('/opt/nodejs/index');
+const {
+  query,
+  getSecretString,
+  json,
+  extractFromStripeEvent,
+  insertPayment,
+} = require('/opt/nodejs/index');
 
 // The webhook signing secret is stored in a single Secrets Manager secret
 // whose name is provided via STRIPE_WEBHOOK_SECRET_ARN. sites.stripe_webhook_secret
@@ -89,78 +95,26 @@ exports.handler = async (event) => {
   }
 
   try {
-    await recordPayment(siteId, stripeEvent);
-  } catch (err) {
-    if (err.code === '23505') {
-      // unique_violation on stripe_event_id => already processed.
+    // Attribution + idempotent insert live in the shared module, reused by the
+    // backfill job so the matching rule is defined in exactly one place.
+    const fields = extractFromStripeEvent(stripeEvent);
+    const result = await insertPayment({
+      siteId,
+      stripeEventId: stripeEvent.id,
+      stripeCustomerId: fields.stripeCustomerId,
+      email: fields.email,
+      amountCents: fields.amountCents,
+      currency: fields.currency,
+      status: 'paid',
+      occurredAtEpoch: stripeEvent.created,
+    });
+    if (result.deduped) {
       return json(200, { ok: true, deduped: true });
     }
+  } catch (err) {
     console.error('failed to record payment', err);
     return json(500, { error: 'failed to record payment' });
   }
 
   return json(200, { ok: true });
 };
-
-async function recordPayment(siteId, stripeEvent) {
-  const obj = stripeEvent.data.object;
-
-  // Extract fields depending on event type.
-  let email = null;
-  let customerId = null;
-  let amountCents = null;
-  let currency = null;
-
-  if (stripeEvent.type === 'checkout.session.completed') {
-    email =
-      obj.customer_details?.email ||
-      obj.customer_email ||
-      null;
-    customerId = obj.customer || null;
-    amountCents = obj.amount_total ?? null;
-    currency = obj.currency || null;
-  } else if (stripeEvent.type === 'invoice.paid') {
-    email = obj.customer_email || null;
-    customerId = obj.customer || null;
-    amountCents = obj.amount_paid ?? null;
-    currency = obj.currency || null;
-  }
-
-  // Attribution: match the payment to a visitor by email captured via an
-  // identify event. Use the most recently active visitor for this site with
-  // that email. If nothing matches, store unattributed (visitor_id NULL) —
-  // do NOT guess.
-  let visitorId = null;
-  if (email) {
-    const match = await query(
-      `SELECT v.id
-         FROM visitors v
-         LEFT JOIN sessions s ON s.visitor_id = v.id
-        WHERE v.site_id = $1 AND lower(v.email) = lower($2)
-        GROUP BY v.id
-        ORDER BY MAX(s.started_at) DESC NULLS LAST, v.first_seen_at DESC
-        LIMIT 1`,
-      [siteId, email]
-    );
-    if (match.rowCount > 0) {
-      visitorId = match.rows[0].id;
-    }
-  }
-
-  await query(
-    `INSERT INTO payments
-       (site_id, visitor_id, stripe_event_id, stripe_customer_id,
-        amount_cents, currency, status, occurred_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, to_timestamp($8))`,
-    [
-      siteId,
-      visitorId,
-      stripeEvent.id,
-      customerId,
-      amountCents,
-      currency,
-      'paid',
-      stripeEvent.created,
-    ]
-  );
-}

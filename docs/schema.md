@@ -19,8 +19,19 @@ The website being tracked. One owner per site (single-owner in v1).
 | `owner_user_id` | `uuid` | Cognito user sub |
 | `name` | `text` | display name |
 | `domain` | `text` | site domain |
-| `stripe_webhook_secret` | `text` | **reference** to the Secrets Manager secret name, not the plaintext value |
+| `stripe_webhook_secret` | `text` | **reference** to the Secrets Manager secret name, not the plaintext value. Populated automatically by the self-service connect flow (Stripe webhook-creation response) |
+| `stripe_restricted_key_secret` | `text` | **reference** to the Secrets Manager secret holding the customer's Stripe restricted key (`rk_live_…`), never plaintext. Added by migration `002` |
+| `stripe_webhook_endpoint_id` | `text` | Stripe webhook endpoint id (`we_…`), kept so the endpoint can be deleted on disconnect. Added by migration `002` |
+| `stripe_connected_at` | `timestamptz` | when Stripe was connected (null = not connected). Added by migration `002` |
+| `stripe_backfill_status` | `text` | `pending` \| `running` \| `complete` \| `failed`. Added by migration `002` |
 | `created_at` | `timestamptz` default `now()` | |
+
+> The Stripe self-service integration columns are added by
+> `backend/shared/migrations/002_stripe_integration.sql` (additive `ALTER
+> TABLE`; the table is not recreated). Restricted keys and signing secrets
+> live only in Secrets Manager under `databuilder-prod/site-<id>-stripe-rak`
+> and `databuilder-prod/site-<id>-stripe-webhook`; the columns store only the
+> secret *names*.
 
 ---
 

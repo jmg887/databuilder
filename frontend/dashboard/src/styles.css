@@ -196,3 +196,33 @@ input {
   text-align: center;
   color: var(--muted);
 }
+
+/* Stripe integration section */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge-ok {
+  background: rgba(91, 140, 255, 0.15);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+.btn-danger {
+  background: transparent;
+  border: 1px solid var(--error);
+  color: var(--error);
+}
+.scopes {
+  margin: 8px 0 16px;
+  padding-left: 20px;
+  font-size: 14px;
+}
+.scopes li {
+  padding: 2px 0;
+}
+.small {
+  font-size: 12px;
+}
