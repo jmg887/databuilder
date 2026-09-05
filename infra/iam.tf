@@ -29,6 +29,7 @@ data "aws_iam_policy_document" "lambda_secrets" {
     resources = [
       aws_secretsmanager_secret.db.arn,
       aws_secretsmanager_secret.stripe.arn,
+      "arn:aws:secretsmanager:eu-north-1:484673686538:secret:databuilder-prod/site-*",
     ]
   }
 }
