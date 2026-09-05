@@ -108,19 +108,19 @@
 
   // ---- transport ---------------------------------------------------------
 
-  function send(events) {
+    function send(events) {
     var payload = JSON.stringify({ siteId: siteId, events: events });
-    if (navigator.sendBeacon) {
-      var blob = new Blob([payload], { type: 'application/json' });
-      if (navigator.sendBeacon(api, blob)) return;
-    }
-    // Fallback: fetch with keepalive so it survives page unload.
+    // sendBeacon always sends credentialed requests, which browsers refuse
+    // to combine with a wildcard CORS origin (required here since this
+    // script runs on arbitrary customer domains). Use fetch with
+    // credentials explicitly omitted instead.
     fetch(api, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: payload,
       keepalive: true,
       mode: 'cors',
+      credentials: 'omit',
     }).catch(function () {});
   }
 
