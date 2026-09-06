@@ -33,12 +33,19 @@ async function findVisitorByEmail(siteId, email) {
 }
 
 /**
- * Insert a payment idempotently. Relies on the unique constraint on
- * payments(stripe_event_id) so the same event (whether from the live webhook
- * or the backfill) is never double-counted.
+ * Insert a payment idempotently. The unique constraint on
+ * payments(stripe_event_id) guarantees the same event id (whether a real
+ * webhook `evt_...` id or a synthetic `backfill_...` id) is never inserted
+ * twice.
  *
- * Returns { inserted: true } on a new row, { inserted: false, deduped: true }
- * when the event was already recorded.
+ * Dedup detection comes from `ON CONFLICT ... DO NOTHING RETURNING id`: when
+ * the conflict fires, no row is returned. (Previously this relied on catching
+ * a 23505 unique-violation, which ON CONFLICT DO NOTHING never raises, so the
+ * dedup branch could never run — that bug is fixed here.)
+ *
+ * Returns:
+ *   { inserted: true,  visitorId }              — a new row was written
+ *   { inserted: false, deduped: true, visitorId } — the id already existed
  *
  * `payment` shape:
  *   { siteId, stripeEventId, stripeCustomerId, email, amountCents, currency,
@@ -48,12 +55,13 @@ async function insertPayment(payment) {
   const visitorId = await findVisitorByEmail(payment.siteId, payment.email);
 
   try {
-    await query(
+    const res = await query(
       `INSERT INTO payments
          (site_id, visitor_id, stripe_event_id, stripe_customer_id,
           amount_cents, currency, status, occurred_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, to_timestamp($8))
-       ON CONFLICT (stripe_event_id) DO NOTHING`,
+       ON CONFLICT (stripe_event_id) DO NOTHING
+       RETURNING id`,
       [
         payment.siteId,
         visitorId,
@@ -65,11 +73,16 @@ async function insertPayment(payment) {
         payment.occurredAtEpoch,
       ]
     );
+    // A row comes back only when an insert actually happened; on conflict the
+    // RETURNING clause yields zero rows.
+    if (res.rowCount === 0) {
+      return { inserted: false, deduped: true, visitorId };
+    }
     return { inserted: true, visitorId };
   } catch (err) {
-    // Belt-and-suspenders: surface unique violations as a dedupe rather than
-    // an error, though ON CONFLICT should already absorb them.
-    if (err.code === '23505') return { inserted: false, deduped: true };
+    // Defensive fallback only: ON CONFLICT DO NOTHING should prevent 23505,
+    // but if a conflict ever surfaced as an error we still treat it as dedup.
+    if (err.code === '23505') return { inserted: false, deduped: true, visitorId };
     throw err;
   }
 }
@@ -81,12 +94,7 @@ async function insertPayment(payment) {
 function extractFromStripeEvent(stripeEvent) {
   const obj = stripeEvent.data?.object || {};
   if (stripeEvent.type === 'checkout.session.completed') {
-    return {
-      email: obj.customer_details?.email || obj.customer_email || null,
-      stripeCustomerId: obj.customer || null,
-      amountCents: obj.amount_total ?? null,
-      currency: obj.currency || null,
-    };
+    return extractFromCheckoutSession(obj);
   }
   if (stripeEvent.type === 'invoice.paid') {
     return {
@@ -99,4 +107,27 @@ function extractFromStripeEvent(stripeEvent) {
   return null;
 }
 
-module.exports = { findVisitorByEmail, insertPayment, extractFromStripeEvent };
+/**
+ * Extract normalized payment fields directly from a Checkout Session object
+ * (as returned by stripe.checkoutSessions.list()), without an Event wrapper.
+ * Used by the backfill, which lists raw objects rather than webhook events.
+ */
+function extractFromCheckoutSession(session) {
+  const obj = session || {};
+  return {
+    email: obj.customer_details?.email || obj.customer_email || null,
+    stripeCustomerId:
+      typeof obj.customer === 'string'
+        ? obj.customer
+        : obj.customer?.id || null,
+    amountCents: obj.amount_total ?? null,
+    currency: obj.currency || null,
+  };
+}
+
+module.exports = {
+  findVisitorByEmail,
+  insertPayment,
+  extractFromStripeEvent,
+  extractFromCheckoutSession,
+};

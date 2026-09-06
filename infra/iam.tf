@@ -50,7 +50,7 @@ data "aws_iam_policy_document" "lambda_secrets" {
       "secretsmanager:TagResource",
     ]
     resources = [
-      "arn:aws:secretsmanager:eu-north-1:484673686538:secret:${local.name}/site-*",
+      "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.current.account_id}:secret:${local.name}/site-*",
     ]
   }
 }

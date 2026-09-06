@@ -206,9 +206,12 @@ copying signing secrets by hand.
 4. Stores the returned signing secret
    (`databuilder-prod/site-<id>-stripe-webhook`) and references it from
    `sites.stripe_webhook_secret`.
-5. Runs a **one-time synchronous backfill** of historical payments (Stripe
-   Events API), attributing each to a visitor by email using the same shared
-   matching logic as the live webhook.
+5. Runs a **one-time synchronous backfill** of historical payments by listing
+   Stripe **Checkout Sessions** (not the 30-day-capped Events API, so payments
+   older than a month are included), attributing each to a visitor by email
+   using the same shared matching logic as the live webhook. Backfilled rows
+   use a synthetic `backfill_<session.id>` id and are idempotent on re-run;
+   see [docs/api.md](docs/api.md#backfill) for the id-namespace tradeoff.
 
 If the key lacks a required scope, Stripe's own permission error is surfaced
 directly to the user. **Disconnect** (`DELETE …/integrations/stripe`) removes

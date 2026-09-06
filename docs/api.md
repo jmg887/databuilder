@@ -281,11 +281,36 @@ brief's documented default (reject test keys in production).
 ## Backfill
 
 Runs once, synchronously, immediately after a successful connect (MVP choice —
-no extra Lambda/queue). It paginates Stripe's **Events API** for
-`checkout.session.completed` and `invoice.paid`, normalizes each event with the
-**shared** `extractFromStripeEvent`, and inserts via the **shared**
-`insertPayment` — the exact same attribution matching the live webhook uses.
-Because it keys on the Stripe **event id** (`evt_…`, the same id the live
-webhook uses) with the unique `payments(stripe_event_id)` constraint and
-`ON CONFLICT DO NOTHING`, a later live webhook for the same event never
-double-counts. On error partway, `stripe_backfill_status` is set to `failed`.
+no extra Lambda/queue).
+
+**Source of history.** It paginates Stripe's **Checkout Sessions** list
+(`stripe.checkout.sessions.list`), **not** the Events API. The Events API only
+retains events for the last 30 days ("List events, going back up to 30 days"),
+so sourcing from it silently dropped any payment older than a month — defeating
+the purpose of a backfill. Checkout Session objects are bounded only by the
+account's own data retention, so historical payments older than 30 days are
+included. Only sessions with `payment_status = 'paid'` are recorded.
+
+Each session is normalized with the **shared** `extractFromCheckoutSession` and
+inserted with the **shared** `insertPayment` — the exact same attribution
+matching the live webhook uses.
+
+**Synthetic ids + idempotency.** Session objects have no Stripe `evt_…` id, so
+for the unique `payments(stripe_event_id)` constraint the backfill uses a
+stable, deterministic synthetic id `backfill_<session.id>`. The same session
+always yields the same id, so re-running the backfill inserts nothing new
+(`ON CONFLICT (stripe_event_id) DO NOTHING RETURNING id` — a row is returned
+only on a real insert).
+
+**Known tradeoff (documented choice).** A real webhook for the same underlying
+payment carries a genuine `evt_…` id, a **different id namespace** from
+`backfill_…`. The backfill deliberately does not reconcile the two (no fuzzy
+customer+amount+time matching). Consequence: for a payment within the recent
+window where the live webhook also fired, two rows can exist for the same
+real-world payment (one `evt_…`, one `backfill_…`). This is accepted to keep
+the backfill idempotent and simple; it only affects the narrow recent overlap
+window (older payments — the whole point of the backfill — have no live-webhook
+counterpart). Chosen over amount+time-window matching, which is heuristic and
+can wrongly merge two genuinely distinct payments.
+
+On error partway, `stripe_backfill_status` is set to `failed`.

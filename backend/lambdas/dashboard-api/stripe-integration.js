@@ -32,7 +32,7 @@ const {
   putSecret,
   deleteSecret,
   getSecretString,
-  extractFromStripeEvent,
+  extractFromCheckoutSession,
   insertPayment,
 } = require('/opt/nodejs/index');
 
@@ -149,7 +149,12 @@ async function connect(siteId, event) {
       `UPDATE sites SET stripe_backfill_status = 'running' WHERE id = $1`,
       [siteId]
     );
-    await runBackfill({ siteId, stripe, extractFromStripeEvent, insertPayment });
+    await runBackfill({
+      siteId,
+      stripe,
+      extractFromCheckoutSession,
+      insertPayment,
+    });
     await query(
       `UPDATE sites SET stripe_backfill_status = 'complete' WHERE id = $1`,
       [siteId]

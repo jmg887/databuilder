@@ -34,9 +34,18 @@ export default function StripeIntegration({ siteId }) {
   async function connect(e) {
     e.preventDefault();
     setError('');
+
+    // Client-side pre-check for the obvious wrong-format case, to save a
+    // network round-trip. The server still validates authoritatively.
+    const key = rak.trim();
+    if (!key.startsWith('rk_live_')) {
+      setError('invalid key format');
+      return;
+    }
+
     setBusy(true);
     try {
-      await api.connectStripe(siteId, rak.trim());
+      await api.connectStripe(siteId, key);
       setRak('');
       await load();
     } catch (err) {
