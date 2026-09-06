@@ -7,7 +7,7 @@ resource "aws_apigatewayv2_api" "main" {
   cors_configuration {
     # /collect is a public tracking endpoint by design.
     allow_origins = ["*"]
-    allow_methods = ["GET", "POST", "OPTIONS"]
+    allow_methods = ["GET", "POST", "DELETE", "OPTIONS"]
     allow_headers = ["content-type", "authorization"]
   }
 }
@@ -84,6 +84,9 @@ locals {
     "POST /sites",
     "GET /sites/{id}/overview",
     "GET /sites/{id}/visitors",
+    "GET /sites/{id}/integrations",
+    "POST /sites/{id}/integrations/stripe",
+    "DELETE /sites/{id}/integrations/stripe",
   ]
 }
 

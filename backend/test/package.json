@@ -1,0 +1,10 @@
+{
+  "name": "@databuilder/test",
+  "version": "1.0.0",
+  "description": "Unit tests for shared + lambda logic (node:test, no deps)",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "test": "node --test"
+  }
+}

@@ -22,14 +22,35 @@ resource "aws_iam_role_policy_attachment" "lambda_vpc" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
-# Read only the two secrets this app uses.
+# Read the shared secrets (DB + legacy Stripe placeholder) and read/write the
+# per-site Stripe secrets. The per-site wildcard already covered reads for the
+# webhook secret; the self-service connect/disconnect flow also needs to
+# create, update, and delete the per-site restricted-key and webhook secrets
+# (databuilder-prod/site-*-stripe-rak and -stripe-webhook).
 data "aws_iam_policy_document" "lambda_secrets" {
+  # Read shared app secrets.
   statement {
+    sid     = "ReadSharedSecrets"
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
       aws_secretsmanager_secret.db.arn,
       aws_secretsmanager_secret.stripe.arn,
-      "arn:aws:secretsmanager:eu-north-1:484673686538:secret:databuilder-prod/site-*",
+    ]
+  }
+
+  # Read + manage per-site secrets (matches the existing wildcard, per §8).
+  statement {
+    sid = "ManagePerSiteSecrets"
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:CreateSecret",
+      "secretsmanager:PutSecretValue",
+      "secretsmanager:DeleteSecret",
+      "secretsmanager:DescribeSecret",
+      "secretsmanager:TagResource",
+    ]
+    resources = [
+      "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.current.account_id}:secret:${local.name}/site-*",
     ]
   }
 }

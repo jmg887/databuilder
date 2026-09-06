@@ -30,4 +30,12 @@ export const api = {
     request(`/sites/${siteId}/overview?range=${range}`),
   visitors: (siteId, range) =>
     request(`/sites/${siteId}/visitors?range=${range}`),
+  getIntegrations: (siteId) => request(`/sites/${siteId}/integrations`),
+  connectStripe: (siteId, stripeRak) =>
+    request(`/sites/${siteId}/integrations/stripe`, {
+      method: 'POST',
+      body: JSON.stringify({ stripeRak }),
+    }),
+  disconnectStripe: (siteId) =>
+    request(`/sites/${siteId}/integrations/stripe`, { method: 'DELETE' }),
 };

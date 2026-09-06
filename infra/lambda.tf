@@ -108,9 +108,11 @@ resource "aws_lambda_function" "dashboard_api" {
   handler          = "index.handler"
   filename         = data.archive_file.dashboard_api.output_path
   source_code_hash = data.archive_file.dashboard_api.output_base64sha256
-  timeout          = 15
-  memory_size      = 256
-  layers           = [aws_lambda_layer_version.shared.arn]
+  # Longer timeout: the Stripe connect flow runs the historical backfill
+  # synchronously (paginating Stripe's Events API) within this request.
+  timeout     = 120
+  memory_size = 256
+  layers      = [aws_lambda_layer_version.shared.arn]
 
   vpc_config {
     subnet_ids         = aws_subnet.private[*].id
@@ -120,6 +122,10 @@ resource "aws_lambda_function" "dashboard_api" {
   environment {
     variables = merge(local.common_env, {
       TRACKING_SCRIPT_URL = "https://${aws_cloudfront_distribution.assets.domain_name}/t.js"
+      # Used to build the webhook URL registered on Stripe and to name the
+      # per-site secrets (databuilder-prod/site-<id>-stripe-*).
+      API_BASE_URL       = aws_apigatewayv2_api.main.api_endpoint
+      SITE_SECRET_PREFIX = local.name
     })
   }
 }

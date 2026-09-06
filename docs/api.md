@@ -194,3 +194,123 @@ Visitor list with first-touch attribution detail and per-visitor revenue
 |---|---|
 | `401` | `{ "error": "unauthorized" }` |
 | `404` | `{ "error": "site not found" }` (unknown or not owned) |
+
+---
+
+## Authenticated — Stripe self-service integration
+
+Same auth + ownership rules as the other `/sites/:id/*` routes. Restricted
+keys and signing secrets are stored only in Secrets Manager and are **never**
+returned by any endpoint.
+
+### `GET /sites/:id/integrations`
+
+Current connection status, for the dashboard to render on load.
+
+```json
+{
+  "stripe": {
+    "connected": true,
+    "connectedAt": "2026-09-05T10:00:00.000Z",
+    "backfillStatus": "complete"
+  }
+}
+```
+
+When not connected: `{ "stripe": { "connected": false, "connectedAt": null, "backfillStatus": null } }`.
+
+### `POST /sites/:id/integrations/stripe`
+
+Connect Stripe using a customer-generated **restricted API key**.
+
+**Request**
+
+```json
+{ "stripeRak": "rk_live_..." }
+```
+
+**Behavior**
+
+1. Validate the key starts with `rk_live_` (test/secret/publishable keys are
+   rejected before any Stripe call — see *Key policy* below).
+2. Store the key in Secrets Manager (`databuilder-prod/site-<id>-stripe-rak`)
+   and reference it from `sites.stripe_restricted_key_secret`.
+3. Create a Stripe webhook endpoint using the customer's key:
+   - `url`: `<api_base_url>/webhooks/stripe?site=<id>`
+   - `enabled_events`: `["checkout.session.completed", "invoice.paid"]`
+4. Store the returned signing `secret` (returned only once) in Secrets Manager
+   (`databuilder-prod/site-<id>-stripe-webhook`) and reference it from
+   `sites.stripe_webhook_secret`.
+5. Set `stripe_connected_at = now()`, `stripe_backfill_status = 'pending'`,
+   persist the webhook endpoint id.
+6. Run the one-time backfill (Section 7) **synchronously**.
+7. Return `201`.
+
+If webhook creation fails, the stored restricted key is rolled back and
+Stripe's own error message is surfaced.
+
+**Key policy (implementer decision):** only `rk_live_` is accepted. `sk_…`,
+`pk_…`, and `rk_test_…` are rejected with `invalid key format`. This is the
+brief's documented default (reject test keys in production).
+
+**Responses**
+
+| status | body |
+|---|---|
+| `201` | `{ "connected": true, "backfillStatus": "complete" }` (or `"failed"` if backfill errored — the connection itself still succeeds) |
+| `400` | `{ "error": "invalid key format" }` / `{ "error": "insufficient permissions: <stripe detail>" }` / `{ "error": "stripe error: <detail>" }` |
+| `404` | `{ "error": "site not found" }` |
+| `409` | `{ "error": "stripe already connected for this site" }` |
+
+### `DELETE /sites/:id/integrations/stripe`
+
+1. Delete the webhook on Stripe (`webhookEndpoints.del`) using the stored
+   restricted key + endpoint id (best-effort).
+2. Delete both Secrets Manager entries (rak + webhook secret).
+3. Clear the Stripe columns on the `sites` row.
+
+**Responses**
+
+| status | body |
+|---|---|
+| `200` | `{ "disconnected": true }` |
+| `404` | `{ "error": "site not found" }` / `{ "error": "not connected" }` |
+
+---
+
+## Backfill
+
+Runs once, synchronously, immediately after a successful connect (MVP choice —
+no extra Lambda/queue).
+
+**Source of history.** It paginates Stripe's **Checkout Sessions** list
+(`stripe.checkout.sessions.list`), **not** the Events API. The Events API only
+retains events for the last 30 days ("List events, going back up to 30 days"),
+so sourcing from it silently dropped any payment older than a month — defeating
+the purpose of a backfill. Checkout Session objects are bounded only by the
+account's own data retention, so historical payments older than 30 days are
+included. Only sessions with `payment_status = 'paid'` are recorded.
+
+Each session is normalized with the **shared** `extractFromCheckoutSession` and
+inserted with the **shared** `insertPayment` — the exact same attribution
+matching the live webhook uses.
+
+**Synthetic ids + idempotency.** Session objects have no Stripe `evt_…` id, so
+for the unique `payments(stripe_event_id)` constraint the backfill uses a
+stable, deterministic synthetic id `backfill_<session.id>`. The same session
+always yields the same id, so re-running the backfill inserts nothing new
+(`ON CONFLICT (stripe_event_id) DO NOTHING RETURNING id` — a row is returned
+only on a real insert).
+
+**Known tradeoff (documented choice).** A real webhook for the same underlying
+payment carries a genuine `evt_…` id, a **different id namespace** from
+`backfill_…`. The backfill deliberately does not reconcile the two (no fuzzy
+customer+amount+time matching). Consequence: for a payment within the recent
+window where the live webhook also fired, two rows can exist for the same
+real-world payment (one `evt_…`, one `backfill_…`). This is accepted to keep
+the backfill idempotent and simple; it only affects the narrow recent overlap
+window (older payments — the whole point of the backfill — have no live-webhook
+counterpart). Chosen over amount+time-window matching, which is heuristic and
+can wrongly merge two genuinely distinct payments.
+
+On error partway, `stripe_backfill_status` is set to `failed`.

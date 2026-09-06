@@ -66,6 +66,14 @@ Dashboard (React) ──GET/POST /sites…(JWT)─▶ dashboard-api ──▶ �
 5. A dashboard showing traffic by source, revenue by source, and revenue
    per visitor by channel.
 
+### Addendum — self-service Stripe connection
+
+Site owners connect Stripe themselves by pasting a restricted API key
+(`rk_live_…`) into the dashboard. The backend then registers the webhook via
+the Stripe API, stores the signing secret, and backfills historical payments
+automatically — no manual webhook setup. See
+[Connecting Stripe](#connecting-stripe-self-service).
+
 ## Non-goals — future phases
 
 Not built in v1: funnels/goal builder, live visitor feed/websockets, MCP /
@@ -118,20 +126,20 @@ See [`docs/api.md`](docs/api.md).
    the credentials stored in the `db-credentials` secret:
 
    ```bash
+   # run migrations in order
    psql "$DATABASE_URL" -f backend/shared/migrations/001_init.sql
+   psql "$DATABASE_URL" -f backend/shared/migrations/002_stripe_integration.sql
    ```
 
-4. **Set the Stripe webhook signing secret** (never commit it). Put the
-   value into the Secrets Manager secret referenced by `stripe_secret_arn`:
+   Migration `002` adds the Stripe self-service columns to `sites`
+   (additive `ALTER TABLE`, safe on the deployed v1 database).
 
-   ```bash
-   aws secretsmanager put-secret-value \
-     --secret-id "$(terraform output -raw stripe_secret_arn)" \
-     --secret-string 'whsec_...'
-   ```
-
-   Then set each site's `stripe_webhook_secret` column to that secret's
-   name/ARN so the webhook lambda can resolve it.
+4. **Stripe connection.** With the self-service integration (see
+   [Connecting Stripe](#connecting-stripe-self-service)), site owners connect
+   Stripe themselves from the dashboard — no manual webhook setup or
+   signing-secret copying. The legacy `stripe_secret_arn` placeholder secret
+   remains for backward compatibility but is no longer part of the normal
+   flow.
 
 5. **Deploy the static assets** (tracking script + dashboard build) to S3:
 
@@ -165,23 +173,61 @@ npm run dev
 
 ---
 
-## Configure Stripe test-mode keys for local development
+## Connecting Stripe (self-service)
 
-1. In the [Stripe Dashboard](https://dashboard.stripe.com/test) (test mode),
-   create a webhook endpoint pointing at
-   `<stripe_webhook_url>?site=<yourSiteId>` and subscribe to
-   `checkout.session.completed` and `invoice.paid`.
-2. Copy the endpoint's **signing secret** (`whsec_...`) into Secrets Manager
-   as described in deploy step 4.
-3. For local webhook testing, use the Stripe CLI:
+Site owners connect Stripe themselves from the dashboard's **Payments —
+Stripe** section on the site detail page. No manual webhook creation, no
+copying signing secrets by hand.
 
-   ```bash
-   stripe listen --forward-to "http://localhost:3000/webhooks/stripe?site=<siteId>"
-   stripe trigger checkout.session.completed
-   ```
+**What the customer does**
 
-Test-mode Stripe keys are never committed — they live only in Secrets
-Manager / your local Stripe CLI session.
+1. In the [Stripe Dashboard](https://dashboard.stripe.com) → Developers →
+   API keys → **Create restricted key**, granting exactly:
+
+   | Resource | Permission | Why |
+   |---|---|---|
+   | Webhooks | **Write** | create the webhook endpoint |
+   | Checkout Sessions | **Read** | backfill historical payments |
+   | Payment Intents | **Read** | backfill historical payments |
+   | Customers | **Read** | resolve customer email for attribution |
+
+2. Paste the restricted key (`rk_live_…`) into the dashboard and click
+   **Connect**.
+
+**What the backend does automatically** (`POST /sites/:id/integrations/stripe`)
+
+1. Validates the key format (**only `rk_live_` accepted** — `sk_`/`pk_`/
+   `rk_test_` are rejected; this is the brief's documented default).
+2. Stores the restricted key in Secrets Manager
+   (`databuilder-prod/site-<id>-stripe-rak`).
+3. Creates the webhook endpoint on Stripe (`webhookEndpoints.create`) for
+   `checkout.session.completed` + `invoice.paid`, pointed at
+   `<api_base_url>/webhooks/stripe?site=<id>`.
+4. Stores the returned signing secret
+   (`databuilder-prod/site-<id>-stripe-webhook`) and references it from
+   `sites.stripe_webhook_secret`.
+5. Runs a **one-time synchronous backfill** of historical payments by listing
+   Stripe **Checkout Sessions** (not the 30-day-capped Events API, so payments
+   older than a month are included), attributing each to a visitor by email
+   using the same shared matching logic as the live webhook. Backfilled rows
+   use a synthetic `backfill_<session.id>` id and are idempotent on re-run;
+   see [docs/api.md](docs/api.md#backfill) for the id-namespace tradeoff.
+
+If the key lacks a required scope, Stripe's own permission error is surfaced
+directly to the user. **Disconnect** (`DELETE …/integrations/stripe`) removes
+the webhook from Stripe and deletes both stored secrets.
+
+Restricted keys and signing secrets live only in Secrets Manager — never
+committed, never logged, never returned by any API response.
+
+### Local development with Stripe test mode
+
+For local webhook testing you can still forward events with the Stripe CLI:
+
+```bash
+stripe listen --forward-to "http://localhost:3000/webhooks/stripe?site=<siteId>"
+stripe trigger checkout.session.completed
+```
 
 ---
 
