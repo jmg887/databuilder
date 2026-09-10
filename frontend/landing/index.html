@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DataBuilder — Know which marketing actually pays off</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F5F5F0;
+    --paper-warm: #EFEEE6;
+    --ink: #14201A;
+    --forest: #1C6B4F;
+    --forest-dark: #12492F;
+    --gold: #C9972B;
+    --hairline: #D8D6CC;
+    --muted: #5C6B62;
+    --white: #FFFFFF;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+
+  a { color: inherit; }
+
+  /* ---------- NAV ---------- */
+  nav.wrap {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 28px;
+    padding-bottom: 28px;
+  }
+  .logo {
+    font-family: 'Fraunces', serif;
+    font-size: 21px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .nav-links {
+    display: flex;
+    gap: 36px;
+    font-size: 14.5px;
+    color: var(--muted);
+  }
+  .nav-cta {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 10px 20px;
+    border-radius: 3px;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  /* ---------- HERO ---------- */
+  .hero {
+    padding: 56px 0 100px;
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 56px;
+    align-items: center;
+  }
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 52px;
+    line-height: 1.09;
+    letter-spacing: -0.015em;
+    max-width: 560px;
+  }
+  .hero-sub {
+    margin-top: 24px;
+    font-size: 18px;
+    color: var(--muted);
+    max-width: 460px;
+    line-height: 1.6;
+  }
+  .hero-actions {
+    margin-top: 34px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .btn-primary {
+    background: var(--forest);
+    color: var(--white);
+    border: none;
+    padding: 14px 26px;
+    font-size: 15px;
+    font-weight: 500;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    /* Rendered as an <a> link (see brief §4); these keep it pixel-identical
+       to the reference's <button>: no underline, padding applies as a box. */
+    text-decoration: none;
+    display: inline-block;
+  }
+  .hero-note {
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+
+  /* ---------- STATEMENT CARD (hero visual) ---------- */
+  .statement-wrap {
+    position: relative;
+  }
+  .statement {
+    background: var(--white);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    padding: 30px 30px 26px;
+    transform: rotate(1.4deg);
+    box-shadow: 0 24px 48px -20px rgba(20, 32, 26, 0.22);
+  }
+  .statement-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid var(--hairline);
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+  }
+  .statement-title {
+    font-family: 'Fraunces', serif;
+    font-size: 16px;
+    font-weight: 500;
+  }
+  .statement-period {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .statement-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 11px 0;
+    border-bottom: 1px dashed var(--hairline);
+    font-size: 14.5px;
+  }
+  .statement-row:last-of-type { border-bottom: none; }
+  .row-source { display: flex; align-items: center; gap: 9px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .row-amount {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14.5px;
+    font-weight: 500;
+  }
+  .row-amount.zero { color: var(--muted); }
+  .statement-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1.5px solid var(--ink);
+  }
+  .statement-total .label { font-size: 13.5px; color: var(--muted); }
+  .statement-total .amount {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 21px;
+    font-weight: 500;
+    color: var(--forest-dark);
+  }
+  .sticky-tag {
+    position: absolute;
+    bottom: -16px;
+    left: -18px;
+    background: var(--gold);
+    color: var(--ink);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    padding: 8px 14px;
+    border-radius: 3px;
+    transform: rotate(-3deg);
+    box-shadow: 0 8px 18px -8px rgba(0,0,0,0.3);
+  }
+
+  /* ---------- PROBLEM ---------- */
+  .problem {
+    background: var(--paper-warm);
+    padding: 90px 0;
+    border-top: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--hairline);
+  }
+  .problem-grid {
+    display: grid;
+    grid-template-columns: 0.85fr 1.15fr;
+    gap: 60px;
+  }
+  h2 {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 34px;
+    line-height: 1.18;
+    letter-spacing: -0.01em;
+  }
+  .problem-body p {
+    font-size: 17px;
+    color: var(--muted);
+    max-width: 500px;
+    line-height: 1.65;
+  }
+  .problem-body p + p { margin-top: 16px; }
+  .problem-body strong { color: var(--ink); font-weight: 500; }
+
+  /* ---------- HOW IT WORKS ---------- */
+  .how {
+    padding: 100px 0;
+  }
+  .how-head { max-width: 560px; margin-bottom: 56px; }
+  .how-head p {
+    margin-top: 14px;
+    font-size: 17px;
+    color: var(--muted);
+  }
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 40px;
+  }
+  .step-num {
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+    color: var(--forest);
+    font-weight: 600;
+    margin-bottom: 18px;
+  }
+  .step h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 20px;
+    font-weight: 500;
+    margin-bottom: 10px;
+  }
+  .step p {
+    font-size: 15px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .step { border-top: 1.5px solid var(--ink); padding-top: 20px; }
+
+  /* ---------- WHO IT'S FOR ---------- */
+  .who {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 100px 0;
+  }
+  .who h2 { color: var(--paper); max-width: 480px; }
+  .who-grid {
+    margin-top: 50px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    background: rgba(245,245,240,0.14);
+  }
+  .who-item {
+    background: var(--ink);
+    padding: 30px 32px;
+  }
+  .who-item h4 {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 17px;
+    margin-bottom: 8px;
+    color: var(--paper);
+  }
+  .who-item p {
+    font-size: 14.5px;
+    color: rgba(245,245,240,0.62);
+    line-height: 1.55;
+  }
+
+  /* ---------- PLATFORMS ---------- */
+  .platforms { padding: 90px 0; }
+  .platforms-inner {
+    display: grid;
+    grid-template-columns: 0.9fr 1.1fr;
+    gap: 56px;
+    align-items: start;
+  }
+  .plat-list {
+    margin-top: 26px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .plat-pill {
+    border: 1px solid var(--hairline);
+    background: var(--white);
+    padding: 9px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .plat-pill .check { color: var(--forest); font-weight: 600; }
+  .plat-note {
+    margin-top: 20px;
+    font-size: 14px;
+    color: var(--muted);
+    border-left: 2px solid var(--gold);
+    padding-left: 14px;
+    max-width: 380px;
+  }
+
+  /* ---------- FAQ ---------- */
+  .faq { padding: 90px 0 110px; border-top: 1px solid var(--hairline); }
+  .faq-head { max-width: 480px; margin-bottom: 46px; }
+  .faq-list { max-width: 700px; }
+  .faq-item {
+    border-top: 1px solid var(--hairline);
+    padding: 24px 0;
+  }
+  .faq-item:last-child { border-bottom: 1px solid var(--hairline); }
+  .faq-q {
+    font-family: 'Fraunces', serif;
+    font-size: 17px;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+  .faq-a { font-size: 15px; color: var(--muted); max-width: 560px; line-height: 1.6; }
+
+  /* ---------- FINAL CTA ---------- */
+  .final-cta {
+    background: var(--forest-dark);
+    color: var(--paper);
+    padding: 100px 0;
+    text-align: left;
+  }
+  .final-cta h2 { color: var(--paper); max-width: 520px; }
+  .final-cta .hero-note { color: rgba(245,245,240,0.6); }
+  .final-cta .hero-actions { margin-top: 30px; }
+  .final-cta .btn-primary { background: var(--gold); color: var(--ink); }
+
+  footer {
+    padding: 40px 0;
+    display: flex;
+    justify-content: space-between;
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+
+  @media (max-width: 880px) {
+    .hero-grid, .problem-grid, .platforms-inner { grid-template-columns: 1fr; }
+    .steps { grid-template-columns: 1fr; }
+    .who-grid { grid-template-columns: 1fr; }
+    h1 { font-size: 38px; }
+    .nav-links { display: none; }
+    .statement { transform: none; margin-top: 40px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="wrap">
+  <div class="logo">DataBuilder</div>
+  <div class="nav-links">
+    <a href="#how">How it works</a>
+    <a href="#who">Who it's for</a>
+    <a href="#faq">FAQ</a>
+  </div>
+  <a class="nav-cta" href="__DATABUILDER_SIGNUP_URL__">Get early access</a>
+</nav>
+
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <h1>Find out which marketing actually pays off.</h1>
+      <p class="hero-sub">DataBuilder connects your traffic to your Stripe revenue — so you know exactly which channel, an ad, an affiliate, a mention, turned into paying customers. Not just clicks.</p>
+      <div class="hero-actions">
+        <a class="btn-primary" href="__DATABUILDER_SIGNUP_URL__">Get early access</a>
+        <span class="hero-note">One script. One Stripe key. That's it.</span>
+      </div>
+    </div>
+    <div class="statement-wrap">
+      <div class="statement">
+        <div class="statement-header">
+          <span class="statement-title">Revenue by source</span>
+          <span class="statement-period">Last 30 days</span>
+        </div>
+        <div class="statement-row">
+          <span class="row-source"><span class="dot" style="background:#1C6B4F"></span>Instagram — Reel promo</span>
+          <span class="row-amount">$4,180</span>
+        </div>
+        <div class="statement-row">
+          <span class="row-source"><span class="dot" style="background:#C9972B"></span>Affiliate — Sarah K.</span>
+          <span class="row-amount">$1,860</span>
+        </div>
+        <div class="statement-row">
+          <span class="row-source"><span class="dot" style="background:#8A9A91"></span>Newsletter</span>
+          <span class="row-amount">$920</span>
+        </div>
+        <div class="statement-row">
+          <span class="row-source"><span class="dot" style="background:#D8D6CC"></span>Google Ads</span>
+          <span class="row-amount zero">$0</span>
+        </div>
+        <div class="statement-total">
+          <span class="label">Total attributed revenue</span>
+          <span class="amount">$6,960</span>
+        </div>
+      </div>
+      <div class="sticky-tag">now you know</div>
+    </div>
+  </div>
+</section>
+
+<section class="problem">
+  <div class="wrap problem-grid">
+    <h2>Right now, you're guessing.</h2>
+    <div class="problem-body">
+      <p>You're running ads, working with a couple of affiliates, maybe doing a podcast swap. Money's coming in — but if someone asked which one actually worked, could you answer with a number, or just a feeling?</p>
+      <p><strong>Your course platform shows you revenue. Your ad platform shows you clicks.</strong> Nothing shows you the line between them — which specific channel turned into a paying customer, and which one you should stop paying for.</p>
+    </div>
+  </div>
+</section>
+
+<section class="how" id="how">
+  <div class="wrap">
+    <div class="how-head">
+      <h2>Three steps. No dev work.</h2>
+      <p>You don't need to be technical to set this up — if you can paste a link into a settings page, you can do this.</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <h3>Add one script</h3>
+        <p>Paste a single snippet into your site's header. Takes about two minutes, works on Webflow, Kajabi, Teachable, Podia, Circle, and self-hosted sites.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <h3>Connect Stripe</h3>
+        <p>Paste in a restricted key from your Stripe dashboard. We set up the connection and pull in your payment history automatically — no manual webhook setup.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <h3>See revenue by channel</h3>
+        <p>Your dashboard shows exactly which source turned into paying customers, and how much each one is actually worth to you.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="who" id="who">
+  <div class="wrap">
+    <h2>Built for people selling something directly.</h2>
+    <div class="who-grid">
+      <div class="who-item">
+        <h4>Course creators</h4>
+        <p>You run paid ads to fill a course or program and need to know which one is actually converting, not just clicking.</p>
+      </div>
+      <div class="who-item">
+        <h4>Coaches</h4>
+        <p>Your leads come from a mix of content, referrals, and paid promotion — and they all look the same until someone pays.</p>
+      </div>
+      <div class="who-item">
+        <h4>Membership & community operators</h4>
+        <p>You want to know which acquisition source brings members who actually stick around and pay, not just sign up.</p>
+      </div>
+      <div class="who-item">
+        <h4>Agencies & productized services</h4>
+        <p>You work with affiliates or partners and need a straight answer on who's actually driving revenue, not just referrals.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="platforms">
+  <div class="wrap platforms-inner">
+    <div>
+      <h2>Works wherever you already are.</h2>
+      <p class="hero-sub" style="max-width:400px;">If you can add one script tag to your site, DataBuilder works.</p>
+    </div>
+    <div>
+      <div class="plat-list">
+        <span class="plat-pill"><span class="check">✓</span> Self-hosted sites</span>
+        <span class="plat-pill"><span class="check">✓</span> Webflow</span>
+        <span class="plat-pill"><span class="check">✓</span> Kajabi</span>
+        <span class="plat-pill"><span class="check">✓</span> Teachable</span>
+        <span class="plat-pill"><span class="check">✓</span> Podia</span>
+        <span class="plat-pill"><span class="check">✓</span> Circle</span>
+      </div>
+      <p class="plat-note">Skool isn't supported yet — it doesn't allow the custom tracking code this requires.</p>
+    </div>
+  </div>
+</section>
+
+<section class="faq" id="faq">
+  <div class="wrap">
+    <div class="faq-head">
+      <h2>Questions you probably have</h2>
+    </div>
+    <div class="faq-list">
+      <div class="faq-item">
+        <div class="faq-q">Do I need to know how to code?</div>
+        <div class="faq-a">No. You paste one script tag once, and connect your Stripe account. That's the whole setup.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">What if I don't use Stripe?</div>
+        <div class="faq-a">Right now DataBuilder only works with Stripe. Support for other payment providers isn't available yet.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Does this work with Skool?</div>
+        <div class="faq-a">Not currently — Skool doesn't allow the kind of custom tracking script this requires.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Is my data private?</div>
+        <div class="faq-a">Yes. Your dashboard and your data belong to you — nobody else can see your traffic or revenue numbers.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="final-cta">
+  <div class="wrap">
+    <h2>Stop guessing which channel is working.</h2>
+    <div class="hero-actions">
+      <a class="btn-primary" href="__DATABUILDER_SIGNUP_URL__">Get early access</a>
+      <span class="hero-note">Free during early access. No credit card required.</span>
+    </div>
+  </div>
+</section>
+
+<footer class="wrap">
+  <div>DataBuilder</div>
+  <div>Know which marketing actually pays off.</div>
+</footer>
+
+</body>
+</html>
