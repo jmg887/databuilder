@@ -31,6 +31,21 @@ output "cloudfront_domain" {
   value       = aws_cloudfront_distribution.assets.domain_name
 }
 
+output "landing_bucket" {
+  description = "S3 bucket for the marketing landing page (separate from dashboard)"
+  value       = aws_s3_bucket.landing.id
+}
+
+output "landing_url" {
+  description = "Public URL of the marketing landing page (default CloudFront domain)"
+  value       = "https://${aws_cloudfront_distribution.landing.domain_name}"
+}
+
+output "landing_signup_url" {
+  description = "Sign-up URL the landing page's CTAs point to"
+  value       = local.landing_signup_url
+}
+
 output "db_secret_arn" {
   value = aws_secretsmanager_secret.db.arn
 }

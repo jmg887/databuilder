@@ -27,7 +27,8 @@ Dashboard (React) ──GET/POST /sites…(JWT)─▶ dashboard-api ──▶ �
 - **API:** API Gateway (HTTP API)
 - **Compute:** AWS Lambda, Node.js 20
 - **Database:** RDS Postgres (relational: group-by, joins, date ranges)
-- **Static hosting:** S3 + CloudFront (tracking script + dashboard build)
+- **Static hosting:** S3 + CloudFront (tracking script + dashboard build; the
+  marketing landing page is a separate S3 bucket + CloudFront distribution)
 - **Auth:** Cognito (dashboard login only; tracking script is unauthenticated,
   keyed by a public site ID)
 - **Secrets:** AWS Secrets Manager (Stripe keys + DB credentials) — never
@@ -49,6 +50,7 @@ Dashboard (React) ──GET/POST /sites…(JWT)─▶ dashboard-api ──▶ �
 /frontend
   /dashboard         React dashboard
   /tracking-script   the JS snippet (built/bundled separately)
+  /landing           public marketing landing page (static HTML, separate host)
 /docs
   schema.md          database schema
   api.md             API endpoint reference
@@ -119,7 +121,8 @@ See [`docs/api.md`](docs/api.md).
 
    Note the outputs: `api_base_url`, `cognito_user_pool_id`,
    `cognito_client_id`, `assets_bucket`, `cloudfront_domain`,
-   `stripe_webhook_url`, `stripe_secret_arn`, `db_secret_arn`.
+   `stripe_webhook_url`, `stripe_secret_arn`, `db_secret_arn`,
+   `landing_bucket`, `landing_url`, `landing_signup_url`.
 
 3. **Load the database schema.** The RDS instance is private; run the
    migration from inside the VPC (bastion / one-off task / your VPN), using
@@ -151,6 +154,18 @@ See [`docs/api.md`](docs/api.md).
    # dashboard (build first with the Cognito/API values, see below)
    aws s3 sync frontend/dashboard/dist "s3://$(terraform output -raw assets_bucket)/"
    ```
+
+6. **Landing page.** The marketing landing page
+   (`frontend/landing/index.html`) is a single static file hosted on its
+   **own** S3 bucket + CloudFront distribution, separate from the dashboard.
+   Terraform uploads it for you (via the `aws_s3_object.landing_index`
+   resource), rendering the three "Get early access" links to point at the
+   dashboard's sign-up route (`https://<dashboard CloudFront>/login`) — so a
+   plain `terraform apply` publishes it; no manual `s3 sync` needed. Its public
+   URL is the `landing_url` output. To point the CTAs at a different sign-up
+   entry point (e.g. a future custom domain), set `-var landing_signup_url=…`.
+   No custom domain is configured yet — it serves on the default CloudFront
+   domain (brief §5).
 
 ---
 

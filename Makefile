@@ -32,6 +32,10 @@ build-tracking:
 build-dashboard:
 	cd frontend/dashboard && npm install --no-audit --no-fund && npm run build
 
+# NOTE: frontend/landing has no build step by design (plain static HTML). It is
+# rendered (sign-up URL injected) and uploaded directly by Terraform's
+# aws_s3_object.landing_index on `terraform apply` — nothing to build here.
+
 clean:
 	rm -rf infra/build/*.zip
 	find backend -name node_modules -type d -prune -exec rm -rf {} +

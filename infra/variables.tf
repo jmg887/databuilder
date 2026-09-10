@@ -45,3 +45,14 @@ variable "lambda_runtime" {
   type        = string
   default     = "nodejs20.x"
 }
+
+variable "landing_signup_url" {
+  description = <<-EOT
+    Sign-up URL that the landing page's "Get early access" links point to.
+    Leave empty to default to the existing dashboard app's sign-up route
+    (https://<dashboard CloudFront domain>/login). Override only if the
+    dashboard is later moved behind a custom domain.
+  EOT
+  type        = string
+  default     = ""
+}
