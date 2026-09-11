@@ -12,9 +12,11 @@
  *   POST   /sites                              create a site (returns id + snippet)
  *   GET    /sites/:id/overview?range=          traffic + revenue by source
  *   GET    /sites/:id/visitors?range=          visitor list with attribution detail
+ *   GET    /sites/:id/status                   lightweight traffic-detection poll
  *   GET    /sites/:id/integrations             connection status
  *   POST   /sites/:id/integrations/stripe      connect Stripe via restricted key
  *   DELETE /sites/:id/integrations/stripe      disconnect Stripe
+ *   POST   /sites/:id/onboarding/dismiss       persist onboarding banner dismissal
  *
  * All queries are parameterized. Every /sites/:id route verifies the site is
  * owned by the requesting user before returning data.
@@ -61,6 +63,9 @@ exports.handler = async (event) => {
       if (sub === 'visitors' && method === 'GET') {
         return await visitors(siteId, range);
       }
+      if (sub === 'status' && method === 'GET') {
+        return await status(siteId);
+      }
       if (sub === 'integrations' && method === 'GET') {
         return await stripeIntegration.getStatus(siteId);
       }
@@ -82,6 +87,22 @@ exports.handler = async (event) => {
       }
       if (method === 'DELETE') {
         return await stripeIntegration.disconnect(siteId);
+      }
+    }
+
+    // /sites/:id/onboarding/dismiss
+    if (
+      segments[0] === 'sites' &&
+      segments.length === 4 &&
+      segments[2] === 'onboarding' &&
+      segments[3] === 'dismiss'
+    ) {
+      const siteId = segments[1];
+      if (!(await ownsSite(userId, siteId))) {
+        return json(404, { error: 'site not found' });
+      }
+      if (method === 'POST') {
+        return await dismissOnboarding(siteId);
       }
     }
 
@@ -283,4 +304,44 @@ async function visitors(siteId, range) {
     range: { days: range.days, start: range.startIso },
     visitors: rows,
   });
+}
+
+/**
+ * Lightweight status for the onboarding install-script step's ~5s poll.
+ * Deliberately the smallest possible query: a COUNT over visitors(site_id, id)
+ * (covered by idx_visitors_site_id) plus the two already-present flags used to
+ * derive the checklist step. No date filtering, no joins, no aggregation over
+ * payments — safe to hit every 5 seconds.
+ */
+async function status(siteId) {
+  const res = await query(
+    `SELECT
+        (SELECT COUNT(*)::int FROM visitors WHERE site_id = $1) AS visitor_count,
+        s.stripe_connected_at,
+        s.onboarding_dismissed_at
+       FROM sites s WHERE s.id = $1`,
+    [siteId]
+  );
+  const row = res.rows[0] || {};
+  const visitorCount = row.visitor_count || 0;
+  return json(200, {
+    hasTraffic: visitorCount > 0,
+    visitorCount,
+    stripeConnected: !!row.stripe_connected_at,
+    onboardingDismissedAt: row.onboarding_dismissed_at || null,
+    // The real tracking snippet (real site ID, real CDN URL) so the install
+    // step can render it without a second call.
+    snippet: buildSnippet(siteId),
+  });
+}
+
+/** Persist dismissal of the completed-onboarding banner (idempotent). */
+async function dismissOnboarding(siteId) {
+  await query(
+    `UPDATE sites
+        SET onboarding_dismissed_at = COALESCE(onboarding_dismissed_at, now())
+      WHERE id = $1`,
+    [siteId]
+  );
+  return json(200, { dismissed: true });
 }
