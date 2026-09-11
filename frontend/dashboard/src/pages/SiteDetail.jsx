@@ -1,157 +1,196 @@
-import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
 import { api } from '../api';
-import StripeIntegration from './StripeIntegration.jsx';
+import ChecklistRail from './ChecklistRail.jsx';
+import StripeConnectPanel from './StripeConnectPanel.jsx';
+import OverviewPanel from './OverviewPanel.jsx';
 
-const RANGES = [
-  { key: '7d', label: 'Last 7 days' },
-  { key: '30d', label: 'Last 30 days' },
-  { key: '90d', label: 'Last 90 days' },
-];
+const POLL_MS = 5000;
 
-function money(cents, currency) {
-  const v = (cents || 0) / 100;
-  return v.toLocaleString(undefined, {
-    style: 'currency',
-    currency: (currency || 'USD').toUpperCase(),
-  });
-}
-
-export default function SiteDetail() {
+// The site dashboard page. Derives the onboarding step from REAL data
+// (status endpoint) and renders the matching state:
+//   step 2  — install script (polls for first traffic, auto-advances)
+//   step 3  — connect Stripe (auto-advances on success)
+//   complete — collapsed banner (until dismissed) + restyled Overview
+export default function SiteDetail({ onSitePill }) {
   const { id } = useParams();
-  const [range, setRange] = useState('30d');
-  const [overview, setOverview] = useState(null);
-  const [visitors, setVisitors] = useState([]);
+  const [status, setStatus] = useState(null); // status endpoint payload
+  const [siteName, setSiteName] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const pollRef = useRef(null);
 
+  const refreshStatus = useCallback(async () => {
+    const s = await api.status(id);
+    setStatus(s);
+    return s;
+  }, [id]);
+
+  // Resolve the site name once (for the nav pill + dashboard head).
   useEffect(() => {
     let alive = true;
-    setLoading(true);
-    setError('');
-    Promise.all([api.overview(id, range), api.visitors(id, range)])
-      .then(([ov, vis]) => {
+    api
+      .listSites()
+      .then((res) => {
         if (!alive) return;
-        setOverview(ov);
-        setVisitors(vis.visitors || []);
+        const site = (res.sites || []).find((s) => s.id === id);
+        setSiteName(site ? site.name : '');
       })
-      .catch((err) => alive && setError(err.message))
-      .finally(() => alive && setLoading(false));
+      .catch(() => {});
     return () => {
       alive = false;
     };
-  }, [id, range]);
+  }, [id]);
+
+  // Push the site name into the nav shell pill; clear on unmount.
+  useEffect(() => {
+    if (siteName) onSitePill?.(siteName);
+    return () => onSitePill?.(null);
+  }, [siteName, onSitePill]);
+
+  // Initial status load.
+  useEffect(() => {
+    let alive = true;
+    setStatus(null);
+    setError('');
+    refreshStatus().catch((err) => alive && setError(err.message));
+    return () => {
+      alive = false;
+    };
+  }, [id, refreshStatus]);
+
+  // Derive the current step from real data.
+  //   hasTraffic false            -> step 2 (install script)
+  //   hasTraffic, !stripeConnected -> step 3 (connect Stripe)
+  //   both                        -> complete
+  const step =
+    status == null
+      ? null
+      : !status.hasTraffic
+      ? 2
+      : !status.stripeConnected
+      ? 3
+      : 'complete';
+
+  // Live polling: only while on step 2 (waiting for first traffic). Stop as
+  // soon as traffic is detected or we leave this step (advance/unmount).
+  useEffect(() => {
+    if (step !== 2) return undefined;
+    pollRef.current = setInterval(() => {
+      refreshStatus().catch(() => {});
+    }, POLL_MS);
+    return () => {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    };
+  }, [step, refreshStatus]);
+
+  if (error) return <p className="error">{error}</p>;
+  if (step == null) return <p className="loading">Loading…</p>;
+
+  // ---------- COMPLETE ----------
+  if (step === 'complete') {
+    return (
+      <CompleteView
+        siteId={id}
+        siteName={siteName}
+        dismissedAt={status.onboardingDismissedAt}
+        onDismissed={refreshStatus}
+      />
+    );
+  }
+
+  // ---------- ONBOARDING (steps 2 & 3) ----------
+  return (
+    <div className="layout">
+      <div className="page-head">
+        <h1>Let's get your first site set up</h1>
+        <p>Three quick steps — takes about five minutes total.</p>
+      </div>
+      <ChecklistRail currentStep={step} />
+      <div className="state-view">
+        {step === 2 && <InstallScriptPanel snippet={status.snippet} />}
+        {step === 3 && (
+          <StripeConnectPanel
+            siteId={id}
+            visitorCount={status.visitorCount}
+            onConnected={refreshStatus}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- STEP 2: install script + live traffic detection ----------
+function InstallScriptPanel({ snippet }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(snippet);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard unavailable — user can select manually */
+    }
+  }
 
   return (
-    <div>
-      <p>
-        <Link to="/">← All sites</Link>
+    <div className="panel">
+      <div className="panel-eyebrow">STEP 2 OF 3</div>
+      <h2>Add this snippet to your site</h2>
+      <p className="lead">
+        Paste this once into your website's header — most platforms (Kajabi,
+        Teachable, Podia, Circle, your own site) have a spot for exactly this.
+        You won't need to touch it again.
       </p>
-      <div className="range-bar">
-        {RANGES.map((r) => (
-          <button
-            key={r.key}
-            className={'range-btn' + (r.key === range ? ' active' : '')}
-            onClick={() => setRange(r.key)}
-          >
-            {r.label}
-          </button>
-        ))}
+      <div className="code-block">{snippet}</div>
+      <div className="copy-row">
+        <button className="copy-btn" onClick={copy}>
+          {copied ? 'Copied!' : 'Copy snippet'}
+        </button>
       </div>
+      <div className="status-row">
+        <span className="pulse-dot"></span> Waiting for your first visitor…
+      </div>
+    </div>
+  );
+}
 
-      <StripeIntegration siteId={id} />
+// ---------- COMPLETE: banner (until dismissed) + restyled Overview ----------
+function CompleteView({ siteId, siteName, dismissedAt, onDismissed }) {
+  const [busy, setBusy] = useState(false);
 
-      {error && <p className="error">{error}</p>}
-      {loading && <p>Loading…</p>}
+  async function dismiss() {
+    setBusy(true);
+    try {
+      await api.dismissOnboarding(siteId);
+      await onDismissed(); // re-fetch status so the banner disappears
+    } catch {
+      setBusy(false);
+    }
+  }
 
-      {overview && !loading && (
-        <>
-          <div className="stats">
-            <div className="stat">
-              <div className="stat-label">Total visitors</div>
-              <div className="stat-value">
-                {overview.totals.total_visitors}
-              </div>
-            </div>
-            <div className="stat">
-              <div className="stat-label">Total revenue</div>
-              <div className="stat-value">
-                {money(overview.totals.total_revenue_cents)}
-              </div>
-            </div>
+  return (
+    <div className="layout">
+      {!dismissedAt && (
+        <div className="complete-banner">
+          <div className="left">
+            <span className="badge">✓</span> Setup complete — DataBuilder is now
+            tracking {siteName || 'your site'}
           </div>
-
-          <div className="card">
-            <h2>Revenue & visitors by source (first-touch)</h2>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Source</th>
-                  <th className="num">Visitors</th>
-                  <th className="num">Revenue</th>
-                  <th className="num">Rev / visitor</th>
-                  <th className="num">Payments</th>
-                </tr>
-              </thead>
-              <tbody>
-                {overview.breakdown.length === 0 && (
-                  <tr>
-                    <td colSpan="5" className="muted">
-                      No data in this range.
-                    </td>
-                  </tr>
-                )}
-                {overview.breakdown.map((row) => (
-                  <tr key={row.source}>
-                    <td>{row.source}</td>
-                    <td className="num">{row.visitors}</td>
-                    <td className="num">{money(row.revenue_cents)}</td>
-                    <td className="num">
-                      {money(row.revenue_per_visitor_cents)}
-                    </td>
-                    <td className="num">{row.payments}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="card">
-            <h2>Visitors</h2>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>First seen</th>
-                  <th>Source</th>
-                  <th>Medium</th>
-                  <th>Campaign</th>
-                  <th>Email</th>
-                  <th className="num">Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visitors.length === 0 && (
-                  <tr>
-                    <td colSpan="6" className="muted">
-                      No visitors in this range.
-                    </td>
-                  </tr>
-                )}
-                {visitors.map((v) => (
-                  <tr key={v.id}>
-                    <td>{new Date(v.first_seen_at).toLocaleString()}</td>
-                    <td>{v.first_utm_source || '(direct)'}</td>
-                    <td>{v.first_utm_medium || '—'}</td>
-                    <td>{v.first_utm_campaign || '—'}</td>
-                    <td>{v.email || '—'}</td>
-                    <td className="num">{money(v.revenue_cents)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
+          <button onClick={dismiss} disabled={busy}>
+            {busy ? '…' : 'Dismiss'}
+          </button>
+        </div>
       )}
+      <div className="dash-full">
+        <div className="dash-head">
+          <h1>{siteName || 'Your site'}</h1>
+          <p>Here's what's actually working.</p>
+        </div>
+        <OverviewPanel siteId={siteId} />
+      </div>
     </div>
   );
 }
