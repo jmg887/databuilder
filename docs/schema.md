@@ -24,6 +24,7 @@ The website being tracked. One owner per site (single-owner in v1).
 | `stripe_webhook_endpoint_id` | `text` | Stripe webhook endpoint id (`we_…`), kept so the endpoint can be deleted on disconnect. Added by migration `002` |
 | `stripe_connected_at` | `timestamptz` | when Stripe was connected (null = not connected). Added by migration `002` |
 | `stripe_backfill_status` | `text` | `pending` \| `running` \| `complete` \| `failed`. Added by migration `002` |
+| `onboarding_dismissed_at` | `timestamptz` | set when the user dismisses the completed onboarding banner; null = not dismissed. Added by migration `003` |
 | `created_at` | `timestamptz` default `now()` | |
 
 > The Stripe self-service integration columns are added by
@@ -32,6 +33,13 @@ The website being tracked. One owner per site (single-owner in v1).
 > live only in Secrets Manager under `databuilder-prod/site-<id>-stripe-rak`
 > and `databuilder-prod/site-<id>-stripe-webhook`; the columns store only the
 > secret *names*.
+
+> The onboarding checklist's current step is **derived** from real data
+> (site exists / has traffic / `stripe_connected_at`), never stored.
+> `onboarding_dismissed_at` (migration `003`,
+> `backend/shared/migrations/003_onboarding.sql`) only records whether the
+> user dismissed the "setup complete" banner, so dismissal persists across
+> sessions and devices — no separate mutable "current step" column exists.
 
 ---
 

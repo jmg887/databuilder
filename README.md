@@ -132,10 +132,12 @@ See [`docs/api.md`](docs/api.md).
    # run migrations in order
    psql "$DATABASE_URL" -f backend/shared/migrations/001_init.sql
    psql "$DATABASE_URL" -f backend/shared/migrations/002_stripe_integration.sql
+   psql "$DATABASE_URL" -f backend/shared/migrations/003_onboarding.sql
    ```
 
-   Migration `002` adds the Stripe self-service columns to `sites`
-   (additive `ALTER TABLE`, safe on the deployed v1 database).
+   Migration `002` adds the Stripe self-service columns to `sites`;
+   migration `003` adds `onboarding_dismissed_at`. Both are additive
+   `ALTER TABLE`s, safe on the deployed database.
 
 4. **Stripe connection.** With the self-service integration (see
    [Connecting Stripe](#connecting-stripe-self-service)), site owners connect
@@ -243,6 +245,29 @@ For local webhook testing you can still forward events with the Stripe CLI:
 stripe listen --forward-to "http://localhost:3000/webhooks/stripe?site=<siteId>"
 stripe trigger checkout.session.completed
 ```
+
+---
+
+## Onboarding checklist
+
+A new user is walked through a persistent, per-site setup checklist on the
+site dashboard (`frontend/dashboard/src/pages/{Sites,SiteDetail,ChecklistRail,
+StripeConnectPanel,OverviewPanel}.jsx`), reskinned to the landing-page visual
+language:
+
+1. **Create site** — the restyled create form (a user with no sites lands
+   here).
+2. **Install script** — shows the real snippet (real site ID) with a copy
+   button, and polls `GET /sites/:id/status` every ~5s. When the first visitor
+   is detected it auto-advances — no reload, no "I've added it" button.
+3. **Connect Stripe** — reuses the PR #2 self-service connect flow
+   (`POST /sites/:id/integrations/stripe`), restyled; auto-advances on success.
+
+The current step is **derived** from real data (site exists / has traffic /
+`stripe_connected_at`) — never a stored progress flag. On completion a collapsed
+banner shows over the restyled "statement" Overview; **Dismiss** persists via
+`POST /sites/:id/onboarding/dismiss` (`onboarding_dismissed_at`), so it stays
+dismissed across devices.
 
 ---
 

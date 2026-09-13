@@ -197,6 +197,45 @@ Visitor list with first-touch attribution detail and per-visitor revenue
 
 ---
 
+## Authenticated — Onboarding
+
+Same auth + ownership rules as the other `/sites/:id/*` routes.
+
+### `GET /sites/:id/status`
+
+Lightweight status used by the onboarding checklist. Designed to be cheap
+enough to **poll every ~5 seconds** while the user is on the install-script
+step: it does a single `COUNT(*)` over `visitors(site_id, id)` (covered by
+`idx_visitors_site_id`) plus the two flags already on the `sites` row — no date
+filtering, joins, or payment aggregation.
+
+```json
+{
+  "hasTraffic": true,
+  "visitorCount": 6,
+  "stripeConnected": false,
+  "onboardingDismissedAt": null,
+  "snippet": "<script async src=\"https://<cdn>/t.js\" data-site-id=\"<siteId>\"></script>"
+}
+```
+
+The frontend derives the checklist step from this (never a stored step):
+`!hasTraffic` → step 2, `hasTraffic && !stripeConnected` → step 3, both → complete.
+
+### `POST /sites/:id/onboarding/dismiss`
+
+Persists dismissal of the completed-onboarding banner (so it stays dismissed
+across sessions/devices). Idempotent — sets `onboarding_dismissed_at` only if
+not already set.
+
+```json
+{ "dismissed": true }
+```
+
+**Auth error** (both routes): `401 unauthorized` / `404 site not found`.
+
+---
+
 ## Authenticated — Stripe self-service integration
 
 Same auth + ownership rules as the other `/sites/:id/*` routes. Restricted

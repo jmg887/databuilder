@@ -30,6 +30,9 @@ export const api = {
     request(`/sites/${siteId}/overview?range=${range}`),
   visitors: (siteId, range) =>
     request(`/sites/${siteId}/visitors?range=${range}`),
+  status: (siteId) => request(`/sites/${siteId}/status`),
+  dismissOnboarding: (siteId) =>
+    request(`/sites/${siteId}/onboarding/dismiss`, { method: 'POST' }),
   getIntegrations: (siteId) => request(`/sites/${siteId}/integrations`),
   connectStripe: (siteId, stripeRak) =>
     request(`/sites/${siteId}/integrations/stripe`, {

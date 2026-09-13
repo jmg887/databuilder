@@ -84,9 +84,11 @@ locals {
     "POST /sites",
     "GET /sites/{id}/overview",
     "GET /sites/{id}/visitors",
+    "GET /sites/{id}/status",
     "GET /sites/{id}/integrations",
     "POST /sites/{id}/integrations/stripe",
     "DELETE /sites/{id}/integrations/stripe",
+    "POST /sites/{id}/onboarding/dismiss",
   ]
 }
 
