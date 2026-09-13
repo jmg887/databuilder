@@ -28,6 +28,14 @@ const stripeIntegration = require('./stripe-integration');
 const TRACKING_SCRIPT_URL =
   process.env.TRACKING_SCRIPT_URL || 'https://cdn.example.com/t.js';
 
+// Base URL of the ingest API (API Gateway), used to give the generated
+// snippet an explicit data-api. Without this the tracking script falls back to
+// deriving the API URL from its own hosting origin (the static-assets
+// CloudFront domain), which has no /collect route — so the request never
+// reached the ingest Lambda. Injected via Terraform from the API's base URL.
+const INGEST_API_URL =
+  process.env.INGEST_API_URL || 'https://api.example.com';
+
 exports.handler = async (event) => {
   const method =
     event.requestContext?.http?.method || event.httpMethod || 'GET';
@@ -170,7 +178,9 @@ async function createSite(userId, event) {
 }
 
 function buildSnippet(siteId) {
-  return `<script async src="${TRACKING_SCRIPT_URL}" data-site-id="${siteId}"></script>`;
+  // Always include an explicit data-api so the script never has to guess the
+  // ingest endpoint from its own (static-hosting) origin.
+  return `<script async src="${TRACKING_SCRIPT_URL}" data-site-id="${siteId}" data-api="${INGEST_API_URL}/collect"></script>`;
 }
 
 /**

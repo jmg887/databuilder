@@ -139,7 +139,7 @@ Create a new site. Generates a site ID and a copy-pasteable snippet.
 ```json
 {
   "site": { "id": "<uuid>", "name": "My SaaS", "domain": "app.example.com", "created_at": "..." },
-  "snippet": "<script async src=\"https://.../t.js\" data-site-id=\"<uuid>\"></script>"
+  "snippet": "<script async src=\"https://.../t.js\" data-site-id=\"<uuid>\" data-api=\"https://<api-gateway>/collect\"></script>"
 }
 ```
 
@@ -215,7 +215,7 @@ filtering, joins, or payment aggregation.
   "visitorCount": 6,
   "stripeConnected": false,
   "onboardingDismissedAt": null,
-  "snippet": "<script async src=\"https://<cdn>/t.js\" data-site-id=\"<siteId>\"></script>"
+  "snippet": "<script async src=\"https://<cdn>/t.js\" data-site-id=\"<siteId>\" data-api=\"https://<api-gateway>/collect\"></script>"
 }
 ```
 
