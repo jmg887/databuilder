@@ -291,8 +291,14 @@ dismissed across devices.
 ## Tracking snippet
 
 ```html
-<script async src="https://<cloudfront_domain>/t.js" data-site-id="<siteId>"></script>
+<script async src="https://<cloudfront_domain>/t.js" data-site-id="<siteId>" data-api="https://<api-gateway>/collect"></script>
 ```
+
+The dashboard-generated snippet always includes an explicit `data-api` pointing
+at the ingest API (API Gateway). This is required: the script (`t.js`) is served
+from the static-assets CloudFront domain, so without `data-api` the tracker's
+fallback would derive `/collect` from that static host — which has no ingest
+route. `data-api`, when present, always takes priority over that fallback.
 
 The script (built to `frontend/tracking-script/dist/t.js`, ~2.8 KB minified):
 generates a first-party visitor-ID cookie (1-year expiry), mints a session ID

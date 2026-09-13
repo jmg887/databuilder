@@ -122,6 +122,10 @@ resource "aws_lambda_function" "dashboard_api" {
   environment {
     variables = merge(local.common_env, {
       TRACKING_SCRIPT_URL = "https://${aws_cloudfront_distribution.assets.domain_name}/t.js"
+      # Ingest API base URL, baked into the generated snippet's data-api so the
+      # tracking script hits API Gateway instead of falling back to its own
+      # (static-hosting) origin. Same value/source as the api_base_url output.
+      INGEST_API_URL = aws_apigatewayv2_api.main.api_endpoint
       # Used to build the webhook URL registered on Stripe and to name the
       # per-site secrets (databuilder-prod/site-<id>-stripe-*).
       API_BASE_URL       = aws_apigatewayv2_api.main.api_endpoint
